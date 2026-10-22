@@ -8,6 +8,7 @@ from dashboard_test_support import (
     stored_dashboard_result,
 )
 from render import (
+    author_cell_text,
     ci_cell,
     render_draft_pr_section,
     render_pr_tables,
@@ -352,6 +353,72 @@ class RenderTest(unittest.TestCase):
         self.assertIn("2026-07-10T00:00:00+00:00", markdown)
         self.assertIn("2026-07-17T00:00:00+00:00", markdown)
         self.assertEqual(2, activity_age.call_count)
+
+    def test_author_legend_explains_badges(self) -> None:
+        markdown = render_pr_tables([], ())
+
+        self.assertIn(
+            "Author column: 🆕 first-time contributor · 🔭 open-telemetry member · "
+            "🛠️ maintainer · 🤖 bot.",
+            markdown,
+        )
+
+    def test_author_badges(self) -> None:
+        maintainers = frozenset({"maintainer"})
+        cases = [
+            ("first-time contributor", {"login": "new"}, "FIRST_TIME_CONTRIBUTOR", "new", "new&nbsp;🆕"),
+            ("first-time GitHub user", {"login": "new"}, "FIRST_TIMER", "new", "new&nbsp;🆕"),
+            ("organization member", {"login": "member"}, "MEMBER", "member", "member&nbsp;🔭"),
+            ("maintainer", {"login": "Maintainer"}, "MEMBER", "Maintainer", "Maintainer&nbsp;🛠️"),
+            ("bot account", {"login": "renovate[bot]", "type": "Bot"}, "CONTRIBUTOR", "renovate[bot]", "renovate[bot]&nbsp;🤖"),
+            ("bot app login", {"login": "renovate[bot]", "type": "Bot"}, "NONE", "app/renovate", "app/renovate&nbsp;🤖"),
+            ("bot user account", {"login": "opentelemetrybot"}, "MEMBER", "opentelemetrybot", "opentelemetrybot&nbsp;🤖"),
+            ("Copilot without a human", {"login": "Copilot", "type": "Bot"}, "NONE", "Copilot", "Copilot&nbsp;🤖"),
+            ("returning contributor", {"login": "contributor"}, "CONTRIBUTOR", "contributor", "contributor"),
+            ("no association", {"login": "outsider"}, None, "outsider", "outsider"),
+            ("unknown author", {}, None, "", ""),
+        ]
+        for name, pr_author, association, author, expected in cases:
+            with self.subTest(name):
+                pr = {"author": pr_author, "authorAssociation": association}
+                self.assertEqual(expected, author_cell_text(pr, author, maintainers))
+
+    def test_copilot_pr_human_author_does_not_inherit_copilot_association(self) -> None:
+        pr = {
+            "author": {"login": "Copilot", "type": "Bot"},
+            "authorAssociation": "FIRST_TIME_CONTRIBUTOR",
+        }
+
+        self.assertEqual("human", author_cell_text(pr, "human"))
+        self.assertEqual(
+            "maintainer&nbsp;🛠️",
+            author_cell_text(pr, "maintainer", frozenset({"maintainer"})),
+        )
+
+    def test_renders_author_badges_in_route_and_draft_tables(self) -> None:
+        markdown = render_pr_tables(
+            [
+                {
+                    "number": 127,
+                    "title": "Feature",
+                    "author": {"login": "member"},
+                    "authorAssociation": "MEMBER",
+                    "isDraft": False,
+                },
+                {
+                    "number": 128,
+                    "title": "Work in progress",
+                    "author": {"login": "maintainer"},
+                    "authorAssociation": "MEMBER",
+                    "isDraft": True,
+                },
+            ],
+            (stored_dashboard_result(127),),
+            maintainer_logins=frozenset({"maintainer"}),
+        )
+
+        self.assertIn("| #127 Feature | member&nbsp;🔭 |", markdown)
+        self.assertIn("| #128 Work in progress | maintainer&nbsp;🛠️ |", markdown)
 
     def test_omits_labels_when_none_are_configured(self) -> None:
         prs = [
