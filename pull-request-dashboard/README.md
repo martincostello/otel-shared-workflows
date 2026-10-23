@@ -102,6 +102,8 @@ The dashboard groups open non-draft pull requests by who is expected to act next
 - **Author** — Effective author of the PR, including in the draft section. For Copilot-authored PRs, this is the human assignee or first-commit committer when available. The login is followed by at most one badge, checked in this order:
   - 🤖 bot account
   - 🛠️ member of one of the repository's `maintainer_teams`
+  - 🔍 member of one of the repository's `approver_teams`
+  - 🏷️ member of one of the repository's `triager_teams`
   - 🔭 other member of the `open-telemetry` organization
   - 🆕 first-time contributor to the repository
   - Organization membership and first-time status come from GitHub's author association for the PR, so they are not shown when a Copilot-authored PR is attributed to its human assignee or committer.
@@ -149,6 +151,7 @@ Open a pull request that adds your repository to [`.github/scripts/pull-request-
     "name": "example-repo",
     "approver_teams": ["example-approvers"],
     "maintainer_teams": ["example-maintainers"],
+    "triager_teams": ["example-triagers"],
     "required_approvals": 1,
     "non_blocking_check_patterns": [
       "markdown-link-check / link-check",
@@ -169,8 +172,9 @@ Fields:
 | Field | Required | Description |
 | ----- | -------- | ----------- |
 | `name` | yes | Name of the repository under `open-telemetry`. |
-| `approver_teams` | yes | GitHub team slugs whose members count as approvers. |
+| `approver_teams` | yes | GitHub team slugs whose members count as approvers. Members are also shown with the 🔍 approver badge in the dashboard's Author column. |
 | `maintainer_teams` | no | GitHub team slugs whose members are shown with the 🛠️ maintainer badge in the dashboard's Author column. Display only; it does not affect routing. Defaults to `[]`, which shows no maintainer badges. |
+| `triager_teams` | no | GitHub team slugs whose members are shown with the 🏷️ triager badge in the dashboard's Author column. Display only; it does not affect routing. Defaults to `[]`, which shows no triager badges. |
 | `required_approvals` | no | Number of active approvals required for an open PR to be marked ready to merge. An approval stops counting while that reviewer has a pending re-review request. Defaults to `1`. |
 | `labels_to_display` | no | Case-sensitive shell-style label name patterns to display inline after PR titles. Exact names such as `breaking change` and wildcard patterns such as `size/*` are supported. Defaults to `[]`, which displays no labels. |
 | `non_blocking_check_patterns` | no | Check-name globs for non-required checks whose failures should be identified in the live PR status comment. When the PR is waiting on the author, matching failures are reported only when at least one required check is failing and are noted alongside those failures. On other routes, matching failures are shown separately. Matching checks remain informational and do not affect routing or the dashboard CI column. |

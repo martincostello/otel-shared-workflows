@@ -3,34 +3,40 @@
     "name": "opentelemetry-collector-contrib",
     "approver_teams": ["collector-contrib-approvers"],
     "maintainer_teams": ["collector-contrib-maintainers"],
+    "triager_teams": ["collector-contrib-triagers"],
     "large_repo": true
   },
   {
     "name": "opentelemetry-dotnet",
     "approver_teams": ["dotnet-approvers"],
-    "maintainer_teams": ["dotnet-maintainers"]
+    "maintainer_teams": ["dotnet-maintainers"],
+    "triager_teams": ["dotnet-triagers"]
   },
   {
     "name": "opentelemetry-dotnet-contrib",
     "approver_teams": ["dotnet-contrib-approvers"],
-    "maintainer_teams": ["dotnet-contrib-maintainers"]
+    "maintainer_teams": ["dotnet-contrib-maintainers"],
+    "triager_teams": ["dotnet-contrib-triagers"]
   },
   {
     "name": "opentelemetry-go",
     "approver_teams": ["go-approvers"],
     "maintainer_teams": ["go-maintainers"],
+    "triager_teams": ["go-triagers"],
     "require_clean_copilot_review_branches": ["main"]
   },
   {
     "name": "opentelemetry-go-contrib",
     "approver_teams": ["go-approvers"],
     "maintainer_teams": ["go-maintainers"],
+    "triager_teams": ["go-triagers"],
     "require_clean_copilot_review_branches": ["main"]
   },
   {
     "name": "opentelemetry-java",
     "approver_teams": ["java-approvers"],
     "maintainer_teams": ["java-maintainers"],
+    "triager_teams": ["java-triagers"],
     "non_blocking_check_patterns": [
       "markdown-link-check / link-check",
       "codecov/*"
@@ -40,22 +46,26 @@
     "name": "opentelemetry-java-instrumentation",
     "approver_teams": ["java-instrumentation-approvers"],
     "maintainer_teams": ["java-instrumentation-maintainers"],
+    "triager_teams": ["java-instrumentation-triagers"],
     "require_clean_copilot_review_branches": ["main"]
   },
   {
     "name": "opentelemetry-js",
     "approver_teams": ["javascript-approvers"],
-    "maintainer_teams": ["javascript-maintainers"]
+    "maintainer_teams": ["javascript-maintainers"],
+    "triager_teams": ["javascript-triagers"]
   },
   {
     "name": "opentelemetry-js-contrib",
     "approver_teams": ["javascript-approvers"],
-    "maintainer_teams": ["javascript-maintainers"]
+    "maintainer_teams": ["javascript-maintainers"],
+    "triager_teams": ["javascript-contrib-triagers"]
   },
   {
     "name": "opentelemetry-proto",
     "approver_teams": ["proto-approvers"],
     "maintainer_teams": ["proto-maintainers"],
+    "triager_teams": ["proto-triagers"],
     "required_approvals": 2
   },
   {
@@ -77,6 +87,7 @@
     "name": "opentelemetry-specification",
     "approver_teams": ["specs-approvers"],
     "maintainer_teams": ["specs-maintainers"],
+    "triager_teams": ["specs-triagers"],
     "required_approvals": 2
   },
   {
@@ -91,12 +102,14 @@
     "approver_teams": [
       "weaver-package-approvers"
     ],
-    "maintainer_teams": ["weaver-package-maintainers"]
+    "maintainer_teams": ["weaver-package-maintainers"],
+    "triager_teams": ["weaver-package-triagers"]
   },
   {
     "name": "opentelemetry.io",
     "approver_teams": ["docs-approvers"],
-    "maintainer_teams": ["docs-maintainers"]
+    "maintainer_teams": ["docs-maintainers"],
+    "triager_teams": ["docs-triagers"]
   },
   {
     "name": "semantic-conventions",
@@ -130,7 +143,8 @@
   {
     "name": "otel-arrow",
     "approver_teams": ["arrow-approvers"],
-    "maintainer_teams": ["arrow-maintainers"]
+    "maintainer_teams": ["arrow-maintainers"],
+    "triager_teams": ["arrow-triagers"]
   },
   {
     "name": "opentelemetry-ebpf-profiler",
@@ -142,6 +156,7 @@
     "name": "opentelemetry-go-compile-instrumentation",
     "approver_teams": ["go-compile-instrumentation-approvers"],
     "maintainer_teams": ["go-compile-instrumentation-maintainers"],
+    "triager_teams": ["go-compile-instrumentation-triagers"],
     "labels_to_display": ["scope:*", "effort:*", "dependencies", "AI/ML *"],
     "non_blocking_check_patterns": [
       "codecov/*",

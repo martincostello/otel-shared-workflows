@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 from fnmatch import fnmatchcase
 from typing import Any
@@ -65,10 +65,31 @@ def _pr_cell_text(
 FIRST_TIME_AUTHOR_ASSOCIATIONS = ("FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER")
 
 
+@dataclass(frozen=True)
+class AuthorTeams:
+    """Lowercased logins of the repository's configured teams."""
+
+    maintainers: frozenset[str] = frozenset()
+    approvers: frozenset[str] = frozenset()
+    triagers: frozenset[str] = frozenset()
+
+    def badge(self, login: str) -> str:
+        # Teams nest (maintainers within approvers within triagers), so check
+        # the most specific team first.
+        login = login.lower()
+        if login in self.maintainers:
+            return "🛠️"
+        if login in self.approvers:
+            return "🔍"
+        if login in self.triagers:
+            return "🏷️"
+        return ""
+
+
 def author_badge(
     pr: dict[str, Any],
     author: str,
-    maintainer_logins: frozenset[str] = frozenset(),
+    teams: AuthorTeams = AuthorTeams(),
 ) -> str:
     pr_author = pr.get("author") or {}
     # GitHub's author association and account type describe the PR author, so
@@ -81,9 +102,10 @@ def author_badge(
         is_pr_author and str(pr_author.get("type") or "").lower() == "bot"
     ):
         return "🤖"
-    # Maintainers are also organization members; show only the more specific badge.
-    if author.lower() in maintainer_logins:
-        return "🛠️"
+    # Team members are also organization members; show only the more specific badge.
+    team_badge = teams.badge(author)
+    if team_badge:
+        return team_badge
     if not is_pr_author:
         return ""
     association = pr.get("authorAssociation")
@@ -97,9 +119,9 @@ def author_badge(
 def author_cell_text(
     pr: dict[str, Any],
     author: str,
-    maintainer_logins: frozenset[str] = frozenset(),
+    teams: AuthorTeams = AuthorTeams(),
 ) -> str:
-    badge = author_badge(pr, author, maintainer_logins) if author else ""
+    badge = author_badge(pr, author, teams) if author else ""
     # Join login and badge with a non-breaking space so they never wrap apart.
     return f"{author}&nbsp;{badge}" if badge else author
 
@@ -108,7 +130,7 @@ def render_draft_pr_section(
     prs: list[dict[str, Any]],
     max_rows_per_section: int | None = None,
     labels_to_display: list[str] | None = None,
-    maintainer_logins: frozenset[str] = frozenset(),
+    author_teams: AuthorTeams = AuthorTeams(),
 ) -> list[str]:
     drafts = [p for p in prs if p.get("isDraft")]
     if not drafts:
@@ -122,7 +144,7 @@ def render_draft_pr_section(
         author = author_cell_text(
             pr,
             pr.get("effectiveAuthor") or actor_login(pr.get("author") or {}),
-            maintainer_logins,
+            author_teams,
         )
         draft_age = activity_age(
             parse_ts(pr.get("draftSince") or pr.get("createdAt") or "")
@@ -277,7 +299,7 @@ def render_pr_tables(
     max_rows_per_section: int | None = None,
     skip_drafts: bool = False,
     labels_to_display: list[str] | None = None,
-    maintainer_logins: frozenset[str] = frozenset(),
+    author_teams: AuthorTeams = AuthorTeams(),
 ) -> str:
     results_by_number = {
         result.pr_number: result
@@ -295,7 +317,7 @@ def render_pr_tables(
     )
     author_note = (
         "Author column: 🆕 first-time contributor · 🔭 open-telemetry member · "
-        "🛠️ maintainer · 🤖 bot."
+        "🏷️ triager · 🔍 approver · 🛠️ maintainer · 🤖 bot."
     )
     reviewers_note = (
         "Reviewers column: ✅ active approval · ✔️ active approval (non-code-owner) · "
@@ -356,7 +378,7 @@ def render_pr_tables(
             author = author_cell_text(
                 pr,
                 facts.author or actor_login(pr.get("author") or {}),
-                maintainer_logins,
+                author_teams,
             )
             reviewers_cell = reviewers_cell_text(facts)
             activity_cell = age_cell(facts)
@@ -377,6 +399,6 @@ def render_pr_tables(
             prs,
             max_rows_per_section,
             labels_to_display,
-            maintainer_logins,
+            author_teams,
         ))
     return "\n".join(out) + "\n"

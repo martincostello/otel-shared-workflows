@@ -13,6 +13,14 @@ from dashboard_test_support import (
     dashboard_state,
     stored_dashboard_result,
 )
+from render import AuthorTeams
+
+
+EXAMPLE_TEAM_SLUGS = publish_dashboard.AuthorTeamSlugs(
+    maintainers=("example-maintainers",),
+    approvers=("example-approvers",),
+    triagers=("example-triagers",),
+)
 
 
 class PublishablePrsTest(unittest.TestCase):
@@ -219,7 +227,7 @@ class PublishablePrsTest(unittest.TestCase):
                 "state-branch",
                 True,
                 ["size/*"],
-                ["example-maintainers"],
+                EXAMPLE_TEAM_SLUGS,
             )
 
         accepted_state_dir.assert_called_once_with("state-branch", required=True)
@@ -228,7 +236,7 @@ class PublishablePrsTest(unittest.TestCase):
             "open-telemetry/example",
             True,
             ["size/*"],
-            ["example-maintainers"],
+            EXAMPLE_TEAM_SLUGS,
         )
         publish.assert_called_once_with("open-telemetry/example", Path("dashboard.md"))
 
@@ -261,18 +269,29 @@ class PublishablePrsTest(unittest.TestCase):
             [Path("old.md")],
         )
 
-    def test_parses_maintainer_teams_json(self) -> None:
+    def test_reads_author_team_slugs_from_the_environment(self) -> None:
         self.assertEqual(
-            ["example-maintainers"],
-            publish_dashboard.parse_maintainer_teams_json('["example-maintainers"]'),
+            EXAMPLE_TEAM_SLUGS,
+            publish_dashboard.AuthorTeamSlugs.from_environment({
+                "MAINTAINER_TEAMS_JSON": '["example-maintainers"]',
+                "APPROVER_TEAMS_JSON": '["example-approvers"]',
+                "TRIAGER_TEAMS_JSON": '["example-triagers"]',
+            }),
         )
-        for raw in ("{", '"example-maintainers"', '[""]'):
-            with self.subTest(raw=raw):
-                with self.assertRaisesRegex(RuntimeError, "MAINTAINER_TEAMS_JSON"):
-                    publish_dashboard.parse_maintainer_teams_json(raw)
+        self.assertEqual(
+            publish_dashboard.AuthorTeamSlugs(),
+            publish_dashboard.AuthorTeamSlugs.from_environment({}),
+        )
+
+    def test_rejects_invalid_author_team_slugs(self) -> None:
+        for name in ("MAINTAINER_TEAMS_JSON", "APPROVER_TEAMS_JSON", "TRIAGER_TEAMS_JSON"):
+            for raw in ("{", '"example-team"', '[""]'):
+                with self.subTest(name=name, raw=raw):
+                    with self.assertRaisesRegex(RuntimeError, name):
+                        publish_dashboard.AuthorTeamSlugs.from_environment({name: raw})
 
     @patch.object(publish_dashboard, "publish_accepted_dashboard")
-    def test_reads_maintainer_teams_from_the_environment(
+    def test_main_passes_author_team_slugs_from_the_environment(
         self,
         publish_accepted: object,
     ) -> None:
@@ -284,7 +303,11 @@ class PublishablePrsTest(unittest.TestCase):
             ),
             patch.dict(
                 os.environ,
-                {"MAINTAINER_TEAMS_JSON": '["example-maintainers"]'},
+                {
+                    "MAINTAINER_TEAMS_JSON": '["example-maintainers"]',
+                    "APPROVER_TEAMS_JSON": '["example-approvers"]',
+                    "TRIAGER_TEAMS_JSON": '["example-triagers"]',
+                },
             ),
         ):
             self.assertEqual(0, publish_dashboard.main())
@@ -294,29 +317,10 @@ class PublishablePrsTest(unittest.TestCase):
             "state",
             False,
             [],
-            ["example-maintainers"],
+            EXAMPLE_TEAM_SLUGS,
         )
 
-    @patch.object(publish_dashboard, "publish_accepted_dashboard")
-    def test_defaults_to_no_maintainer_teams(self, publish_accepted: object) -> None:
-        environment = {
-            key: value
-            for key, value in os.environ.items()
-            if key != "MAINTAINER_TEAMS_JSON"
-        }
-        with (
-            patch.object(
-                sys,
-                "argv",
-                ["publish_dashboard.py", "--repo", "example", "--state-branch", "state"],
-            ),
-            patch.dict(os.environ, environment, clear=True),
-        ):
-            self.assertEqual(0, publish_dashboard.main())
-
-        self.assertEqual([], publish_accepted.call_args.args[4])
-
-    def test_passes_labels_and_maintainers_to_renderer(self) -> None:
+    def test_passes_labels_and_author_teams_to_renderer(self) -> None:
         prs = [
             {
                 "number": 1,
@@ -352,7 +356,7 @@ class PublishablePrsTest(unittest.TestCase):
                 patch.object(
                     publish_dashboard,
                     "load_team_members",
-                    return_value={"maintainer"},
+                    side_effect=lambda _org, slugs: {slugs[0].removeprefix("example-")},
                 ) as load_team_members,
             ):
                 self.assertEqual(
@@ -361,13 +365,17 @@ class PublishablePrsTest(unittest.TestCase):
                         "open-telemetry/example",
                         False,
                         ["size/*"],
-                        ["example-maintainers"],
+                        EXAMPLE_TEAM_SLUGS,
                     ),
                 )
 
-        load_team_members.assert_called_once_with(
-            "open-telemetry",
-            ["example-maintainers"],
+        self.assertEqual(
+            [
+                (("open-telemetry", ["example-maintainers"]),),
+                (("open-telemetry", ["example-approvers"]),),
+                (("open-telemetry", ["example-triagers"]),),
+            ],
+            [(call.args,) for call in load_team_members.call_args_list],
         )
         render_pr_tables.assert_called_once_with(
             prs,
@@ -375,10 +383,14 @@ class PublishablePrsTest(unittest.TestCase):
             max_rows_per_section=None,
             skip_drafts=False,
             labels_to_display=["size/*"],
-            maintainer_logins=frozenset({"maintainer"}),
+            author_teams=AuthorTeams(
+                maintainers=frozenset({"maintainers"}),
+                approvers=frozenset({"approvers"}),
+                triagers=frozenset({"triagers"}),
+            ),
         )
 
-    def test_skips_maintainer_lookup_without_maintainer_teams(self) -> None:
+    def test_skips_team_lookups_without_author_teams(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_path = Path(tmp) / "dashboard.md"
             with (
