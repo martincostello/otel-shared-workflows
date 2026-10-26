@@ -7,8 +7,7 @@ import argparse
 import json
 import os
 import sys
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +25,7 @@ from github_cli import (
 from dashboard_contracts import StoredDashboardResult
 from pull_request_author import effective_author, is_copilot_author
 from pull_request_source import normalize_commits, normalize_pull_request
-from render import AuthorTeams, render_pr_tables
+from render import render_pr_tables
 from state import (
     dashboard_markdown_path,
     load_dashboard_state_cache,
@@ -65,39 +64,13 @@ def parse_labels_to_display_json(raw: str) -> list[str]:
     return _parse_string_list_json(raw, "--labels-to-display-json")
 
 
-@dataclass(frozen=True)
-class AuthorTeamSlugs:
-    maintainers: tuple[str, ...] = ()
-    approvers: tuple[str, ...] = ()
-    triagers: tuple[str, ...] = ()
-
-    # The queue processor passes teams through the environment rather than
-    # flags so that stable-channel scripts without these options still run.
-    @classmethod
-    def from_environment(cls, environ: Mapping[str, str]) -> AuthorTeamSlugs:
-        def slugs(name: str) -> tuple[str, ...]:
-            return tuple(_parse_string_list_json(environ.get(name) or "[]", name))
-
-        return cls(
-            maintainers=slugs("MAINTAINER_TEAMS_JSON"),
-            approvers=slugs("APPROVER_TEAMS_JSON"),
-            triagers=slugs("TRIAGER_TEAMS_JSON"),
-        )
+# The queue processor already passes approver teams to every command through
+# the environment, so stable-channel scripts need no new flag.
+APPROVER_TEAMS_ENV = "APPROVER_TEAMS_JSON"
 
 
-def load_author_teams(repo: str, slugs: AuthorTeamSlugs) -> AuthorTeams:
-    org = repo.split("/", 1)[0]
-
-    def members(team_slugs: tuple[str, ...]) -> frozenset[str]:
-        if not team_slugs:
-            return frozenset()
-        return frozenset(load_team_members(org, list(team_slugs)))
-
-    return AuthorTeams(
-        maintainers=members(slugs.maintainers),
-        approvers=members(slugs.approvers),
-        triagers=members(slugs.triagers),
-    )
+def parse_approver_teams_json(raw: str) -> list[str]:
+    return _parse_string_list_json(raw, APPROVER_TEAMS_ENV)
 
 
 # GraphQL is used instead of the REST `/repos/{repo}/issues` list endpoint
@@ -253,13 +226,17 @@ def render_dashboard_markdown(
     repo: str,
     large_repo: bool,
     labels_to_display: list[str] | None = None,
-    author_team_slugs: AuthorTeamSlugs = AuthorTeamSlugs(),
+    approver_teams: list[str] | None = None,
 ) -> Path:
     dashboard_state = load_dashboard_state_cache()
     if dashboard_state is None:
         raise RuntimeError("dashboard state not found")
 
-    author_teams = load_author_teams(repo, author_team_slugs)
+    approver_logins = frozenset(
+        load_team_members(repo.split("/", 1)[0], approver_teams)
+        if approver_teams
+        else ()
+    )
     prs = list_open_prs(repo)
     if not large_repo:
         add_draft_authors(repo, prs)
@@ -272,7 +249,7 @@ def render_dashboard_markdown(
         max_rows_per_section=LARGE_REPO_MAX_ROWS_PER_SECTION if large_repo else None,
         skip_drafts=large_repo,
         labels_to_display=labels_to_display,
-        author_teams=author_teams,
+        approver_logins=approver_logins,
     )
     output_path = dashboard_markdown_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,7 +272,7 @@ def publish_accepted_dashboard(
     state_branch_name: str,
     large_repo: bool,
     labels_to_display: list[str] | None = None,
-    author_team_slugs: AuthorTeamSlugs = AuthorTeamSlugs(),
+    approver_teams: list[str] | None = None,
 ) -> None:
     with state_branch.accepted_state_dir(state_branch_name, required=True) as state_dir:
         if state_dir is None:
@@ -307,7 +284,7 @@ def publish_accepted_dashboard(
                 repo,
                 large_repo,
                 labels_to_display,
-                author_team_slugs,
+                approver_teams,
             ),
         )
 
@@ -338,7 +315,7 @@ def main() -> int:
         args.state_branch,
         args.large_repo,
         parse_labels_to_display_json(args.labels_to_display_json),
-        AuthorTeamSlugs.from_environment(os.environ),
+        parse_approver_teams_json(os.environ.get(APPROVER_TEAMS_ENV) or "[]"),
     )
     return 0
 
