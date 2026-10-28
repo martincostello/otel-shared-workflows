@@ -18,7 +18,7 @@ permissions: {}
 jobs:
   fossa:
     permissions:
-      contents: read # for actions/checkout
+      contents: read
     uses: open-telemetry/shared-workflows/.github/workflows/fossa.yml@<sha-or-tag>
     secrets:
       FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
